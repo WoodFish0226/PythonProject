@@ -1,14 +1,22 @@
 import discord
 from discord.ext import commands
 import logging
+import threading
+from fastapi import FastAPI, Request
+from fastapi.dependencies.utils import request_body_to_args
+
+from server_management import check_server_status
 from dotenv import load_dotenv
 import os
-import time
+import uvicorn
 Minecraft_Log = r"C:\Users\yuhao\Documents\server\server.log"
 
 "hey Alexy, look here look here look here look here look here look here look here look here look here look here look here"
 "replace the path in the Log variable above to the \"latest_log\" in your minecraft server"
 
+
+GUILD_ID = "1462632241585979394"
+LOG_CHANNEL_ID = "1462636342881161237"
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 ServerIsOn = False
@@ -49,8 +57,12 @@ async def dm(ctx, user: discord.User, *, msg):
         await ctx.send("I can't DM that user.")
 
 @bot.command()
-async def LaunchCheck(ctx):
-    await ctx.send(f"{ctx.author.mention}  the server is on: {ServerIsOn}")
+async def check_status(ctx): # renamed LaunchCheck to check_status for python conventions
+    status = check_server_status()
+    if status:
+        await ctx.send("🟩 The server is on")
+    else:
+        await ctx.send("🟥 The server is off, or there was a problem connecting to it") # changed the messages
 
 @bot.command()
 async def UserSpeaker(member):
@@ -60,5 +72,21 @@ async def UserSpeaker(member):
 async def hello(ctx):
     await ctx.send(f"Hello {ctx.author.mention}!")
 
+app = FastAPI()
+
+
+@app.post("/log_message")
+async def send_log_message(request: Request):
+    body = request.get("message")
+    await bot.get_guild(GUILD_ID).get_channel(LOG_CHANNEL_ID).send(body)
+
 # text = read_log()
-bot.run(token, log_handler=handler, log_level=logging.DEBUG)
+
+def run_bot():
+    bot.run(token, log_handler=handler, log_level=logging.DEBUG)
+
+
+if __name__ == "__main__":
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.start()
+    uvicorn.run(app, host="127.0.0.1", port=8000)
